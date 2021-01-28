@@ -13,6 +13,7 @@ use crate::series::private::PrivateSeries;
 use ahash::RandomState;
 use arrow::array::{ArrayDataRef, ArrayRef};
 use arrow::buffer::Buffer;
+use smallvec::SmallVec;
 #[cfg(feature = "object")]
 use std::any::Any;
 #[cfg(feature = "object")]
@@ -62,55 +63,58 @@ macro_rules! impl_dyn_series {
                 self.0.vec_hash(random_state)
             }
 
-            fn agg_mean(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_mean(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_mean(groups)
             }
 
-            fn agg_min(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_min(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_min(groups)
             }
 
-            fn agg_max(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_max(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_max(groups)
             }
 
-            fn agg_sum(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_sum(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_sum(groups)
             }
 
-            fn agg_first(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+            fn agg_first(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
                 self.0.agg_first(groups)
             }
 
-            fn agg_last(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+            fn agg_last(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
                 self.0.agg_last(groups)
             }
 
-            fn agg_std(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_std(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_std(groups)
             }
 
-            fn agg_var(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_var(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_var(groups)
             }
 
-            fn agg_n_unique(&self, groups: &[(usize, Vec<usize>)]) -> Option<UInt32Chunked> {
+            fn agg_n_unique(
+                &self,
+                groups: &[(usize, SmallVec<GroupContainer>)],
+            ) -> Option<UInt32Chunked> {
                 self.0.agg_n_unique(groups)
             }
 
-            fn agg_list(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_list(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_list(groups)
             }
 
             fn agg_quantile(
                 &self,
-                groups: &[(usize, Vec<usize>)],
+                groups: &[(usize, SmallVec<GroupContainer>)],
                 quantile: f64,
             ) -> Option<Series> {
                 self.0.agg_quantile(groups, quantile)
             }
 
-            fn agg_median(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+            fn agg_median(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
                 self.0.agg_median(groups)
             }
 
@@ -118,7 +122,7 @@ macro_rules! impl_dyn_series {
                 &self,
                 pivot_series: &'a (dyn SeriesTrait + 'a),
                 keys: Vec<Series>,
-                groups: &[(usize, Vec<usize>)],
+                groups: &[(usize, SmallVec<GroupContainer>)],
                 agg_type: PivotAgg,
             ) -> Result<DataFrame> {
                 self.0.pivot(pivot_series, keys, groups, agg_type)
@@ -128,7 +132,7 @@ macro_rules! impl_dyn_series {
                 &self,
                 pivot_series: &'a (dyn SeriesTrait + 'a),
                 keys: Vec<Series>,
-                groups: &[(usize, Vec<usize>)],
+                groups: &[(usize, SmallVec<GroupContainer>)],
             ) -> Result<DataFrame> {
                 self.0.pivot_count(pivot_series, keys, groups)
             }
@@ -163,7 +167,7 @@ macro_rules! impl_dyn_series {
             fn remainder(&self, rhs: &Series) -> Result<Series> {
                 NumOpsDispatch::remainder(&self.0, rhs)
             }
-            fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+            fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
                 IntoGroupTuples::group_tuples(&self.0, multithreaded)
             }
         }

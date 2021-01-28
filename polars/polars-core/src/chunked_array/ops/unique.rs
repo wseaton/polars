@@ -7,12 +7,13 @@ use ahash::RandomState;
 use itertools::Itertools;
 use num::{NumCast, ToPrimitive};
 use rayon::prelude::*;
+use smallvec::SmallVec;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::Hash;
 
 pub(crate) fn is_unique_helper(
-    mut groups: Vec<(usize, Vec<usize>)>,
+    mut groups: Vec<(usize, SmallVec<GroupContainer>)>,
     len: usize,
     unique_val: bool,
     duplicated_val: bool,
@@ -227,7 +228,7 @@ impl ChunkUnique<CategoricalType> for CategoricalChunked {
     }
 }
 
-fn dummies_helper(mut groups: Vec<usize>, len: usize, name: &str) -> UInt8Chunked {
+fn dummies_helper(mut groups: SmallVec<GroupContainer>, len: usize, name: &str) -> UInt8Chunked {
     groups.sort_unstable();
 
     // let mut group_member_iter = groups.into_iter();

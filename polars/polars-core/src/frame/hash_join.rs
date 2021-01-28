@@ -10,6 +10,7 @@ use ahash::RandomState;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::prelude::*;
+use smallvec::SmallVec;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -43,9 +44,9 @@ pub enum JoinType {
 
 unsafe fn get_hash_tbl<T>(
     h: u64,
-    hash_tables: &[HashMap<T, Vec<usize>, RandomState>],
+    hash_tables: &[HashMap<T, SmallVec<GroupContainer>, RandomState>],
     len: u64,
-) -> &HashMap<T, Vec<usize>, RandomState>
+) -> &HashMap<T, SmallVec<GroupContainer>, RandomState>
 where
     T: Send + Hash + Eq + Sync + Copy,
 {

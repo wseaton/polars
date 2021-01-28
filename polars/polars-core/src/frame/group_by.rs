@@ -14,12 +14,16 @@ use itertools::Itertools;
 use num::{Num, NumCast, ToPrimitive, Zero};
 use polars_arrow::prelude::*;
 use rayon::prelude::*;
+use smallvec::{smallvec, SmallVec};
 use std::collections::HashSet;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::{
     fmt::{Debug, Formatter},
     ops::Add,
 };
+
+/// The Stack based size of the groupby indices.
+pub type GroupContainer = [usize; 1];
 
 pub trait VecHash {
     /// Compute the hase for all values in the array.
@@ -159,7 +163,7 @@ impl VecHash for Float64Chunked {
 
 impl VecHash for ListChunked {}
 
-fn groupby<T>(a: impl Iterator<Item = T>) -> Vec<(usize, Vec<usize>)>
+fn groupby<T>(a: impl Iterator<Item = T>) -> Vec<(usize, SmallVec<GroupContainer>)>
 where
     T: Hash + Eq,
 {
@@ -174,7 +178,7 @@ where
         .collect()
 }
 
-fn groupby_threaded_flat<I, T>(iters: Vec<I>) -> Vec<(usize, Vec<usize>)>
+fn groupby_threaded_flat<I, T>(iters: Vec<I>) -> Vec<(usize, SmallVec<GroupContainer>)>
 where
     I: IntoIterator<Item = T> + Send,
     T: Send + Hash + Eq + Sync + Copy,
@@ -182,7 +186,7 @@ where
     groupby_threaded(iters).into_iter().flatten().collect()
 }
 
-fn groupby_threaded<I, T>(iters: Vec<I>) -> Vec<Vec<(usize, Vec<usize>)>>
+fn groupby_threaded<I, T>(iters: Vec<I>) -> Vec<Vec<(usize, SmallVec<GroupContainer>)>>
 where
     I: IntoIterator<Item = T> + Send,
     T: Send + Hash + Eq + Sync + Copy,
@@ -200,7 +204,7 @@ where
             let hashes_and_keys = &hashes_and_keys;
             let thread_no = thread_no as u64;
 
-            let mut hash_tbl: HashMap<T, (usize, Vec<usize>), RandomState> =
+            let mut hash_tbl: HashMap<T, (usize, SmallVec<GroupContainer>), RandomState> =
                 HashMap::with_capacity_and_hasher(size / (5 * n_threads), random_state);
 
             let n_threads = n_threads as u64;
@@ -222,7 +226,7 @@ where
 
                             match entry {
                                 RawEntryMut::Vacant(entry) => {
-                                    entry.insert_hashed_nocheck(*h, *k, (idx, vec![idx]));
+                                    entry.insert_hashed_nocheck(*h, *k, (idx, smallvec![idx]));
                                 }
                                 RawEntryMut::Occupied(mut entry) => {
                                     let (_k, v) = entry.get_key_value_mut();
@@ -241,7 +245,7 @@ where
 }
 
 fn populate_multiple_key_hashmap<'a, 'b>(
-    hash_tbl: &mut HashMap<IdxHash, (usize, Vec<usize>), IdBuildHasher>,
+    hash_tbl: &mut HashMap<IdxHash, (usize, SmallVec<GroupContainer>), IdBuildHasher>,
     row_1: &'b mut Row<'a>,
     row_2: &'b mut Row<'a>,
     idx: usize,
@@ -262,7 +266,7 @@ fn populate_multiple_key_hashmap<'a, 'b>(
         });
     match entry {
         RawEntryMut::Vacant(entry) => {
-            entry.insert_hashed_nocheck(h, IdxHash::new(idx, h), (idx, vec![idx]));
+            entry.insert_hashed_nocheck(h, IdxHash::new(idx, h), (idx, smallvec![idx]));
         }
         RawEntryMut::Occupied(mut entry) => {
             let (_k, v) = entry.get_key_value_mut();
@@ -271,11 +275,11 @@ fn populate_multiple_key_hashmap<'a, 'b>(
     }
 }
 
-fn groupby_multiple_keys(keys: DataFrame) -> Vec<(usize, Vec<usize>)> {
+fn groupby_multiple_keys(keys: DataFrame) -> Vec<(usize, SmallVec<GroupContainer>)> {
     let (hashes, _) = df_rows_to_hashes(&keys, None);
     let size = hashes.len();
     // rather over allocate because rehashing is expensive
-    let mut hash_tbl: HashMap<IdxHash, (usize, Vec<usize>), IdBuildHasher> =
+    let mut hash_tbl: HashMap<IdxHash, (usize, SmallVec<GroupContainer>), IdBuildHasher> =
         HashMap::with_capacity_and_hasher(size, IdBuildHasher::default());
     let mut row_1 = keys.get_row(0);
     let mut row_2 = row_1.clone();
@@ -289,7 +293,7 @@ fn groupby_multiple_keys(keys: DataFrame) -> Vec<(usize, Vec<usize>)> {
 fn groupby_threaded_multiple_keys_flat(
     keys: DataFrame,
     n_threads: usize,
-) -> Vec<(usize, Vec<usize>)> {
+) -> Vec<(usize, SmallVec<GroupContainer>)> {
     let dfs = split_df(&keys, n_threads).unwrap();
     let (hashes, _random_state) = df_rows_to_hashes_threaded(&dfs, None);
     let size = hashes.len();
@@ -315,7 +319,7 @@ fn groupby_threaded_multiple_keys_flat(
             let mut row_2 = row_1.clone();
 
             // rather over allocate because rehashing is expensive
-            let mut hash_tbl: HashMap<IdxHash, (usize, Vec<usize>), IdBuildHasher> =
+            let mut hash_tbl: HashMap<IdxHash, (usize, SmallVec<GroupContainer>), IdBuildHasher> =
                 HashMap::with_capacity_and_hasher(size / (2 * n_threads), IdBuildHasher::default());
 
             let n_threads = n_threads as u64;
@@ -352,7 +356,7 @@ pub trait IntoGroupTuples {
     /// Create the tuples need for a groupby operation.
     ///     * The first value in te tuple is the first index of the group.
     ///     * The second value in the tuple is are the indexes of the groups including the first value.
-    fn group_tuples(&self, _multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+    fn group_tuples(&self, _multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
         unimplemented!()
     }
 }
@@ -394,24 +398,24 @@ where
     T: PolarsIntegerType,
     T::Native: Eq + Hash + Send,
 {
-    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
         group_tuples!(self, multithreaded)
     }
 }
 impl IntoGroupTuples for BooleanChunked {
-    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
         group_tuples!(self, multithreaded)
     }
 }
 
 impl IntoGroupTuples for Utf8Chunked {
-    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
         group_tuples!(self, multithreaded)
     }
 }
 
 impl IntoGroupTuples for CategoricalChunked {
-    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
         group_tuples!(self, multithreaded)
     }
 }
@@ -447,12 +451,12 @@ macro_rules! impl_into_group_tpls_float {
 }
 
 impl IntoGroupTuples for Float64Chunked {
-    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
         impl_into_group_tpls_float!(self, multithreaded)
     }
 }
 impl IntoGroupTuples for Float32Chunked {
-    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+    fn group_tuples(&self, multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
         impl_into_group_tpls_float!(self, multithreaded)
     }
 }
@@ -682,28 +686,28 @@ pub struct GroupBy<'df, 'selection_str> {
     df: &'df DataFrame,
     pub(crate) selected_keys: Vec<Series>,
     // [first idx, [other idx]]
-    pub(crate) groups: Vec<(usize, Vec<usize>)>,
+    pub(crate) groups: Vec<(usize, SmallVec<GroupContainer>)>,
     // columns selected for aggregation
     selected_agg: Option<Vec<&'selection_str str>>,
 }
 
 pub(crate) trait NumericAggSync {
-    fn agg_mean(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_mean(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         None
     }
-    fn agg_min(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_min(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         None
     }
-    fn agg_max(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_max(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         None
     }
-    fn agg_sum(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_sum(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         None
     }
-    fn agg_std(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_std(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         None
     }
-    fn agg_var(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_var(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         None
     }
 }
@@ -721,7 +725,7 @@ where
     T::Native: std::ops::Add<Output = T::Native> + Num + NumCast,
     ChunkedArray<T>: IntoSeries,
 {
-    fn agg_mean(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_mean(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         let ca: Float64Chunked = groups
             .par_iter()
             .map(|(first, idx)| {
@@ -737,7 +741,7 @@ where
         Some(ca.into_series())
     }
 
-    fn agg_min(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_min(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         Some(
             groups
                 .par_iter()
@@ -755,7 +759,7 @@ where
         )
     }
 
-    fn agg_max(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_max(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         Some(
             groups
                 .par_iter()
@@ -773,7 +777,7 @@ where
         )
     }
 
-    fn agg_sum(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_sum(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         Some(
             groups
                 .par_iter()
@@ -790,7 +794,7 @@ where
                 .into_series(),
         )
     }
-    fn agg_var(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_var(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         Some(
             groups
                 .par_iter()
@@ -806,7 +810,7 @@ where
                 .into_series(),
         )
     }
-    fn agg_std(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_std(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         Some(
             groups
                 .par_iter()
@@ -825,7 +829,7 @@ where
 }
 
 pub(crate) trait AggFirst {
-    fn agg_first(&self, _groups: &[(usize, Vec<usize>)]) -> Series;
+    fn agg_first(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Series;
 }
 
 macro_rules! impl_agg_first {
@@ -843,31 +847,31 @@ where
     T: PolarsPrimitiveType + Send,
     ChunkedArray<T>: IntoSeries,
 {
-    fn agg_first(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_first(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_first!(self, groups, ChunkedArray<T>)
     }
 }
 
 impl AggFirst for BooleanChunked {
-    fn agg_first(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_first(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_first!(self, groups, BooleanChunked)
     }
 }
 
 impl AggFirst for Utf8Chunked {
-    fn agg_first(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_first(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_first!(self, groups, Utf8Chunked)
     }
 }
 
 impl AggFirst for ListChunked {
-    fn agg_first(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_first(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_first!(self, groups, ListChunked)
     }
 }
 
 impl AggFirst for CategoricalChunked {
-    fn agg_first(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_first(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         self.cast::<UInt32Type>()
             .unwrap()
             .agg_first(groups)
@@ -878,13 +882,13 @@ impl AggFirst for CategoricalChunked {
 
 #[cfg(feature = "object")]
 impl<T> AggFirst for ObjectChunked<T> {
-    fn agg_first(&self, _groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_first(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         todo!()
     }
 }
 
 pub(crate) trait AggLast {
-    fn agg_last(&self, _groups: &[(usize, Vec<usize>)]) -> Series;
+    fn agg_last(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Series;
 }
 
 macro_rules! impl_agg_last {
@@ -902,25 +906,25 @@ where
     T: PolarsPrimitiveType + Send,
     ChunkedArray<T>: IntoSeries,
 {
-    fn agg_last(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_last(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_last!(self, groups, ChunkedArray<T>)
     }
 }
 
 impl AggLast for BooleanChunked {
-    fn agg_last(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_last(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_last!(self, groups, BooleanChunked)
     }
 }
 
 impl AggLast for Utf8Chunked {
-    fn agg_last(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_last(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_last!(self, groups, Utf8Chunked)
     }
 }
 
 impl AggLast for CategoricalChunked {
-    fn agg_last(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_last(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         self.cast::<UInt32Type>()
             .unwrap()
             .agg_last(groups)
@@ -930,20 +934,20 @@ impl AggLast for CategoricalChunked {
 }
 
 impl AggLast for ListChunked {
-    fn agg_last(&self, groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_last(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         impl_agg_last!(self, groups, ListChunked)
     }
 }
 
 #[cfg(feature = "object")]
 impl<T> AggLast for ObjectChunked<T> {
-    fn agg_last(&self, _groups: &[(usize, Vec<usize>)]) -> Series {
+    fn agg_last(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
         todo!()
     }
 }
 
 pub(crate) trait AggNUnique {
-    fn agg_n_unique(&self, _groups: &[(usize, Vec<usize>)]) -> Option<UInt32Chunked> {
+    fn agg_n_unique(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<UInt32Chunked> {
         None
     }
 }
@@ -979,7 +983,7 @@ where
     T: PolarsIntegerType + Sync,
     T::Native: Hash + Eq,
 {
-    fn agg_n_unique(&self, groups: &[(usize, Vec<usize>)]) -> Option<UInt32Chunked> {
+    fn agg_n_unique(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<UInt32Chunked> {
         Some(impl_agg_n_unique!(self, groups, NoNull<UInt32Chunked>))
     }
 }
@@ -989,7 +993,7 @@ impl AggNUnique for Float32Chunked {}
 impl AggNUnique for Float64Chunked {}
 impl AggNUnique for ListChunked {}
 impl AggNUnique for CategoricalChunked {
-    fn agg_n_unique(&self, groups: &[(usize, Vec<usize>)]) -> Option<UInt32Chunked> {
+    fn agg_n_unique(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<UInt32Chunked> {
         self.cast::<UInt32Type>().unwrap().agg_n_unique(groups)
     }
 }
@@ -998,19 +1002,19 @@ impl<T> AggNUnique for ObjectChunked<T> {}
 
 // TODO: could be faster as it can only be null, true, or false
 impl AggNUnique for BooleanChunked {
-    fn agg_n_unique(&self, groups: &[(usize, Vec<usize>)]) -> Option<UInt32Chunked> {
+    fn agg_n_unique(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<UInt32Chunked> {
         Some(impl_agg_n_unique!(self, groups, NoNull<UInt32Chunked>))
     }
 }
 
 impl AggNUnique for Utf8Chunked {
-    fn agg_n_unique(&self, groups: &[(usize, Vec<usize>)]) -> Option<UInt32Chunked> {
+    fn agg_n_unique(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<UInt32Chunked> {
         Some(impl_agg_n_unique!(self, groups, NoNull<UInt32Chunked>))
     }
 }
 
 pub(crate) trait AggList {
-    fn agg_list(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_list(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         None
     }
 }
@@ -1019,7 +1023,7 @@ where
     T: PolarsDataType,
     ChunkedArray<T>: IntoSeries,
 {
-    fn agg_list(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_list(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         // needed capacity for the list
         let values_cap = groups.iter().fold(0, |acc, g| acc + g.1.len());
 
@@ -1078,11 +1082,15 @@ where
 }
 
 pub(crate) trait AggQuantile {
-    fn agg_quantile(&self, _groups: &[(usize, Vec<usize>)], _quantile: f64) -> Option<Series> {
+    fn agg_quantile(
+        &self,
+        _groups: &[(usize, SmallVec<GroupContainer>)],
+        _quantile: f64,
+    ) -> Option<Series> {
         None
     }
 
-    fn agg_median(&self, groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+    fn agg_median(&self, groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
         self.agg_quantile(groups, 0.5)
     }
 }
@@ -1093,7 +1101,11 @@ where
     T::Native: PartialEq,
     ChunkedArray<T>: IntoSeries,
 {
-    fn agg_quantile(&self, groups: &[(usize, Vec<usize>)], quantile: f64) -> Option<Series> {
+    fn agg_quantile(
+        &self,
+        groups: &[(usize, SmallVec<GroupContainer>)],
+        quantile: f64,
+    ) -> Option<Series> {
         Some(
             groups
                 .into_par_iter()
@@ -1136,7 +1148,7 @@ impl<'df, 'selection_str> GroupBy<'df, 'selection_str> {
     /// The Vec returned contains:
     ///     (first_idx, Vec<indexes>)
     ///     Where second value in the tuple is a vector with all matching indexes.
-    pub fn get_groups(&self) -> &Vec<(usize, Vec<usize>)> {
+    pub fn get_groups(&self) -> &Vec<(usize, SmallVec<GroupContainer>)> {
         &self.groups
     }
 
@@ -1917,7 +1929,7 @@ pub(crate) trait ChunkPivot {
         &self,
         _pivot_series: &'a (dyn SeriesTrait + 'a),
         _keys: Vec<Series>,
-        _groups: &[(usize, Vec<usize>)],
+        _groups: &[(usize, SmallVec<GroupContainer>)],
         _agg_type: PivotAgg,
     ) -> Result<DataFrame> {
         Err(PolarsError::InvalidOperation(
@@ -1929,7 +1941,7 @@ pub(crate) trait ChunkPivot {
         &self,
         _pivot_series: &'a (dyn SeriesTrait + 'a),
         _keys: Vec<Series>,
-        _groups: &[(usize, Vec<usize>)],
+        _groups: &[(usize, SmallVec<GroupContainer>)],
     ) -> Result<DataFrame> {
         Err(PolarsError::InvalidOperation(
             "Pivot count operation not implemented for this type".into(),
@@ -1955,7 +1967,7 @@ fn create_column_values_map<'a, T>(
 /// Create a hashmap that maps columns/keys to the result of the aggregation.
 fn create_new_column_builder_map<'a, T>(
     pivot_vec: &'a [Option<Groupable>],
-    groups: &[(usize, Vec<usize>)],
+    groups: &[(usize, SmallVec<GroupContainer>)],
 ) -> HashMap<&'a Groupable<'a>, PrimitiveChunkedBuilder<T>, RandomState>
 where
     T: PolarsNumericType,
@@ -1983,7 +1995,7 @@ where
         &self,
         pivot_series: &'a (dyn SeriesTrait + 'a),
         keys: Vec<Series>,
-        groups: &[(usize, Vec<usize>)],
+        groups: &[(usize, SmallVec<GroupContainer>)],
         agg_type: PivotAgg,
     ) -> Result<DataFrame> {
         // TODO: save an allocation by creating a random access struct for the Groupable utility type.
@@ -2045,7 +2057,7 @@ where
         &self,
         pivot_series: &'a (dyn SeriesTrait + 'a),
         keys: Vec<Series>,
-        groups: &[(usize, Vec<usize>)],
+        groups: &[(usize, SmallVec<GroupContainer>)],
     ) -> Result<DataFrame> {
         pivot_count_impl(self, pivot_series, keys, groups)
     }
@@ -2055,7 +2067,7 @@ fn pivot_count_impl<'a, CA: TakeRandom>(
     ca: &CA,
     pivot_series: &'a (dyn SeriesTrait + 'a),
     keys: Vec<Series>,
-    groups: &[(usize, Vec<usize>)],
+    groups: &[(usize, SmallVec<GroupContainer>)],
 ) -> Result<DataFrame> {
     let pivot_vec: Vec<_> = pivot_series.as_groupable_iter()?.collect();
     // create a hash map that will be filled with the results of the aggregation.
@@ -2102,7 +2114,7 @@ impl ChunkPivot for BooleanChunked {
         &self,
         pivot_series: &'a (dyn SeriesTrait + 'a),
         keys: Vec<Series>,
-        groups: &[(usize, Vec<usize>)],
+        groups: &[(usize, SmallVec<GroupContainer>)],
     ) -> Result<DataFrame> {
         pivot_count_impl(self, pivot_series, keys, groups)
     }
@@ -2112,7 +2124,7 @@ impl ChunkPivot for Utf8Chunked {
         &self,
         pivot_series: &'a (dyn SeriesTrait + 'a),
         keys: Vec<Series>,
-        groups: &[(usize, Vec<usize>)],
+        groups: &[(usize, SmallVec<GroupContainer>)],
     ) -> Result<DataFrame> {
         pivot_count_impl(&self, pivot_series, keys, groups)
     }
@@ -2123,7 +2135,7 @@ impl ChunkPivot for CategoricalChunked {
         &self,
         pivot_series: &'a (dyn SeriesTrait + 'a),
         keys: Vec<Series>,
-        groups: &[(usize, Vec<usize>)],
+        groups: &[(usize, SmallVec<GroupContainer>)],
     ) -> Result<DataFrame> {
         self.cast::<UInt32Type>()
             .unwrap()

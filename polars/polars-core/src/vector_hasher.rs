@@ -6,6 +6,7 @@ use ahash::RandomState;
 use hashbrown::{hash_map::RawEntryMut, HashMap};
 use itertools::Itertools;
 use rayon::prelude::*;
+use smallvec::{smallvec, SmallVec};
 use std::hash::{BuildHasher, BuildHasherDefault, Hash, Hasher};
 
 // Read more:
@@ -66,9 +67,9 @@ pub(crate) fn this_thread(h: u64, thread_no: u64, n_threads: u64) -> bool {
 
 fn finish_table_from_key_hashes<T>(
     hashes_nd_keys: Vec<(u64, T)>,
-    mut hash_tbl: HashMap<T, Vec<usize>, RandomState>,
+    mut hash_tbl: HashMap<T, SmallVec<GroupContainer>, RandomState>,
     offset: usize,
-) -> HashMap<T, Vec<usize>, RandomState>
+) -> HashMap<T, SmallVec<GroupContainer>, RandomState>
 where
     T: Hash + Eq,
 {
@@ -86,14 +87,14 @@ where
                     v.push(idx);
                 })
                 // otherwise we insert both the key and new Vec without hashing
-                .or_insert_with(|| (t, vec![idx]));
+                .or_insert_with(|| (t, smallvec![idx]));
         });
     hash_tbl
 }
 
 pub(crate) fn prepare_hashed_relation<T>(
     b: impl Iterator<Item = T>,
-) -> HashMap<T, Vec<usize>, RandomState>
+) -> HashMap<T, SmallVec<GroupContainer>, RandomState>
 where
     T: Hash + Eq,
 {
@@ -107,7 +108,7 @@ where
         })
         .collect::<Vec<_>>();
 
-    let hash_tbl: HashMap<T, Vec<usize>, RandomState> =
+    let hash_tbl: HashMap<T, SmallVec<GroupContainer>, RandomState> =
         HashMap::with_capacity_and_hasher(hashes_nd_keys.len(), random_state);
 
     finish_table_from_key_hashes(hashes_nd_keys, hash_tbl, 0)
@@ -115,7 +116,7 @@ where
 
 pub(crate) fn prepare_hashed_relation_threaded<T, I>(
     iters: Vec<I>,
-) -> Vec<HashMap<T, Vec<usize>, RandomState>>
+) -> Vec<HashMap<T, SmallVec<GroupContainer>, RandomState>>
 where
     I: Iterator<Item = T> + Send,
     T: Send + Hash + Eq + Sync + Copy,
@@ -132,7 +133,7 @@ where
             let random_state = random_state.clone();
             let hashes_and_keys = &hashes_and_keys;
             let thread_no = thread_no as u64;
-            let mut hash_tbl: HashMap<T, Vec<usize>, RandomState> =
+            let mut hash_tbl: HashMap<T, SmallVec<GroupContainer>, RandomState> =
                 HashMap::with_capacity_and_hasher(size / (5 * n_threads), random_state);
 
             let n_threads = n_threads as u64;
@@ -154,7 +155,7 @@ where
 
                             match entry {
                                 RawEntryMut::Vacant(entry) => {
-                                    entry.insert_hashed_nocheck(*h, *k, vec![idx]);
+                                    entry.insert_hashed_nocheck(*h, *k, smallvec![idx]);
                                 }
                                 RawEntryMut::Occupied(mut entry) => {
                                     let (_k, v) = entry.get_key_value_mut();

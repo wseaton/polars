@@ -13,6 +13,7 @@ use crate::chunked_array::kernels::cast::cast;
 use arrow::array::ArrayDataRef;
 use itertools::Itertools;
 use num::NumCast;
+use smallvec::SmallVec;
 use std::any::Any;
 use std::convert::TryFrom;
 use std::ops::Deref;
@@ -27,47 +28,54 @@ pub(crate) mod private {
         fn vec_hash(&self, _random_state: RandomState) -> UInt64Chunked {
             unimplemented!()
         }
-        fn agg_mean(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_mean(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_min(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_min(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_max(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_max(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_sum(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_sum(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_std(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_std(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_var(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_var(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_first(&self, _groups: &[(usize, Vec<usize>)]) -> Series {
+        fn agg_first(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
             unimplemented!()
         }
-        fn agg_last(&self, _groups: &[(usize, Vec<usize>)]) -> Series {
+        fn agg_last(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Series {
             unimplemented!()
         }
-        fn agg_n_unique(&self, _groups: &[(usize, Vec<usize>)]) -> Option<UInt32Chunked> {
+        fn agg_n_unique(
+            &self,
+            _groups: &[(usize, SmallVec<GroupContainer>)],
+        ) -> Option<UInt32Chunked> {
             unimplemented!()
         }
-        fn agg_list(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_list(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_quantile(&self, _groups: &[(usize, Vec<usize>)], _quantile: f64) -> Option<Series> {
+        fn agg_quantile(
+            &self,
+            _groups: &[(usize, SmallVec<GroupContainer>)],
+            _quantile: f64,
+        ) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_median(&self, _groups: &[(usize, Vec<usize>)]) -> Option<Series> {
+        fn agg_median(&self, _groups: &[(usize, SmallVec<GroupContainer>)]) -> Option<Series> {
             unimplemented!()
         }
         fn pivot<'a>(
             &self,
             _pivot_series: &'a (dyn SeriesTrait + 'a),
             _keys: Vec<Series>,
-            _groups: &[(usize, Vec<usize>)],
+            _groups: &[(usize, SmallVec<GroupContainer>)],
             _agg_type: PivotAgg,
         ) -> Result<DataFrame> {
             unimplemented!()
@@ -77,7 +85,7 @@ pub(crate) mod private {
             &self,
             _pivot_series: &'a (dyn SeriesTrait + 'a),
             _keys: Vec<Series>,
-            _groups: &[(usize, Vec<usize>)],
+            _groups: &[(usize, SmallVec<GroupContainer>)],
         ) -> Result<DataFrame> {
             unimplemented!()
         }
@@ -114,7 +122,7 @@ pub(crate) mod private {
         fn remainder(&self, _rhs: &Series) -> Result<Series> {
             unimplemented!()
         }
-        fn group_tuples(&self, _multithreaded: bool) -> Vec<(usize, Vec<usize>)> {
+        fn group_tuples(&self, _multithreaded: bool) -> Vec<(usize, SmallVec<GroupContainer>)> {
             unimplemented!()
         }
     }

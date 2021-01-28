@@ -5,6 +5,7 @@ pub mod planner;
 use crate::prelude::*;
 use ahash::RandomState;
 use polars_core::prelude::*;
+use polars_core::utils::smallvec::SmallVec;
 use polars_io::PhysicalIOExpr;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -77,12 +78,16 @@ impl PhysicalIOExpr for dyn PhysicalExpr {
 }
 
 pub trait AggPhysicalExpr {
-    fn evaluate(&self, df: &DataFrame, groups: &[(usize, Vec<usize>)]) -> Result<Option<Series>>;
+    fn evaluate(
+        &self,
+        df: &DataFrame,
+        groups: &[(usize, SmallVec<GroupContainer>)],
+    ) -> Result<Option<Series>>;
 
     fn evaluate_partitioned(
         &self,
         df: &DataFrame,
-        groups: &[(usize, Vec<usize>)],
+        groups: &[(usize, SmallVec<GroupContainer>)],
     ) -> Result<Option<Vec<Series>>> {
         // we return a vec, such that an implementor can return more information, such as a sum and count.
         self.evaluate(df, groups).map(|opt| opt.map(|s| vec![s]))
@@ -91,7 +96,7 @@ pub trait AggPhysicalExpr {
     fn evaluate_partitioned_final(
         &self,
         final_df: &DataFrame,
-        groups: &[(usize, Vec<usize>)],
+        groups: &[(usize, SmallVec<GroupContainer>)],
     ) -> Result<Option<Series>> {
         self.evaluate(final_df, groups)
     }
