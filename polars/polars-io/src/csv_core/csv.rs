@@ -375,7 +375,7 @@ impl<R: Read + Sync + Send> SequentialReader<R> {
                 capacity = std::cmp::min(n, capacity);
             }
 
-            let path = self.path.as_ref().unwrap();
+            let path = self.path.as_ref().expect("path should be set");
             let file = std::fs::File::open(path).expect("path should be set");
             let mmap = unsafe { memmap::Mmap::map(&file).unwrap() };
             let bytes = mmap[..].as_ref();

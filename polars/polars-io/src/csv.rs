@@ -44,6 +44,7 @@
 //! .infer_schema(Some(100))
 //! .has_header(true)
 //! .with_batch_size(100)
+//! .with_stable_parser(false) 
 //! .finish()
 //! .unwrap();
 //!
@@ -425,6 +426,7 @@ mod test {
             .has_header(true)
             .with_ignore_parser_errors(true)
             .with_batch_size(100)
+            .with_stable_parser(false)
             .finish()
             .unwrap();
         dbg!(df.select_at_idx(0).unwrap().n_chunks());
@@ -443,6 +445,7 @@ mod test {
             .has_header(true)
             .with_batch_size(2)
             .with_ignore_parser_errors(true)
+            .with_stable_parser(false)
             .finish()
             .unwrap();
 
@@ -459,6 +462,7 @@ mod test {
         let df = CsvReader::new(file)
             .infer_schema(Some(100))
             .has_header(true)
+            .with_stable_parser(false)
             .with_batch_size(100)
             .finish()
             .unwrap();
@@ -480,6 +484,7 @@ mod test {
             .infer_schema(Some(100))
             .has_header(true)
             .with_batch_size(100)
+            .with_stable_parser(false)
             .finish()
             .unwrap();
 
@@ -505,6 +510,7 @@ mod test {
             .has_header(false)
             .with_ignore_parser_errors(true)
             .with_batch_size(100)
+            .with_stable_parser(false)
             .finish()
             .unwrap();
 
