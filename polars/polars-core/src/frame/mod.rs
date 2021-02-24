@@ -1307,7 +1307,7 @@ impl DataFrame {
             None => self.get_column_names(),
         };
         let gb = self.groupby(names)?;
-        let groups = gb.get_groups().iter().map(|v| v.0);
+        let groups = gb.get_groups().iter().flatten().map(|v| v.0);
 
         let df = if maintain_order {
             let mut groups = groups.collect::<Vec<_>>();

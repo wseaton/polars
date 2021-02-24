@@ -82,51 +82,51 @@ macro_rules! impl_dyn_series {
                 self.0.vec_hash(random_state)
             }
 
-            fn agg_mean(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_mean(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_mean(groups)
             }
 
-            fn agg_min(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_min(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_min(groups)
             }
 
-            fn agg_max(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_max(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_max(groups)
             }
 
-            fn agg_sum(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_sum(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_sum(groups)
             }
 
-            fn agg_first(&self, groups: &[(u32, Vec<u32>)]) -> Series {
+            fn agg_first(&self, groups: &GroupTuples) -> Series {
                 self.0.agg_first(groups)
             }
 
-            fn agg_last(&self, groups: &[(u32, Vec<u32>)]) -> Series {
+            fn agg_last(&self, groups: &GroupTuples) -> Series {
                 self.0.agg_last(groups)
             }
 
-            fn agg_std(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_std(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_std(groups)
             }
 
-            fn agg_var(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_var(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_var(groups)
             }
 
-            fn agg_n_unique(&self, groups: &[(u32, Vec<u32>)]) -> Option<UInt32Chunked> {
+            fn agg_n_unique(&self, groups: &GroupTuples) -> Option<UInt32Chunked> {
                 self.0.agg_n_unique(groups)
             }
 
-            fn agg_list(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_list(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_list(groups)
             }
 
-            fn agg_quantile(&self, groups: &[(u32, Vec<u32>)], quantile: f64) -> Option<Series> {
+            fn agg_quantile(&self, groups: &GroupTuples, quantile: f64) -> Option<Series> {
                 self.0.agg_quantile(groups, quantile)
             }
 
-            fn agg_median(&self, groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+            fn agg_median(&self, groups: &GroupTuples) -> Option<Series> {
                 self.0.agg_median(groups)
             }
 
@@ -134,7 +134,7 @@ macro_rules! impl_dyn_series {
                 &self,
                 pivot_series: &'a (dyn SeriesTrait + 'a),
                 keys: Vec<Series>,
-                groups: &[(u32, Vec<u32>)],
+                groups: &GroupTuples,
                 agg_type: PivotAgg,
             ) -> Result<DataFrame> {
                 self.0.pivot(pivot_series, keys, groups, agg_type)
@@ -144,7 +144,7 @@ macro_rules! impl_dyn_series {
                 &self,
                 pivot_series: &'a (dyn SeriesTrait + 'a),
                 keys: Vec<Series>,
-                groups: &[(u32, Vec<u32>)],
+                groups: &GroupTuples,
             ) -> Result<DataFrame> {
                 self.0.pivot_count(pivot_series, keys, groups)
             }
@@ -179,7 +179,7 @@ macro_rules! impl_dyn_series {
             fn remainder(&self, rhs: &Series) -> Result<Series> {
                 NumOpsDispatch::remainder(&self.0, rhs)
             }
-            fn group_tuples(&self, multithreaded: bool) -> Vec<(u32, Vec<u32>)> {
+            fn group_tuples(&self, multithreaded: bool) -> GroupTuples {
                 IntoGroupTuples::group_tuples(&self.0, multithreaded)
             }
         }

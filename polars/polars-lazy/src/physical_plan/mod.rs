@@ -8,6 +8,7 @@ use polars_core::prelude::*;
 use polars_io::PhysicalIoExpr;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use polars_core::frame::group_by::GroupTuples;
 
 pub enum ExprVal {
     Series(Series),
@@ -77,12 +78,12 @@ impl PhysicalIoExpr for dyn PhysicalExpr {
 }
 
 pub trait AggPhysicalExpr {
-    fn evaluate(&self, df: &DataFrame, groups: &[(u32, Vec<u32>)]) -> Result<Option<Series>>;
+    fn evaluate(&self, df: &DataFrame, groups: &GroupTuples) -> Result<Option<Series>>;
 
     fn evaluate_partitioned(
         &self,
         df: &DataFrame,
-        groups: &[(u32, Vec<u32>)],
+        groups: &GroupTuples,
     ) -> Result<Option<Vec<Series>>> {
         // we return a vec, such that an implementor can return more information, such as a sum and count.
         self.evaluate(df, groups).map(|opt| opt.map(|s| vec![s]))
@@ -91,7 +92,7 @@ pub trait AggPhysicalExpr {
     fn evaluate_partitioned_final(
         &self,
         final_df: &DataFrame,
-        groups: &[(u32, Vec<u32>)],
+        groups: &GroupTuples,
     ) -> Result<Option<Series>> {
         self.evaluate(final_df, groups)
     }

@@ -179,7 +179,11 @@ fn q10(c: &mut Criterion) {
     });
 }
 
+// criterion_group!(name = benches;
+// config = Criterion::default().sample_size(10);
+// targets = q1, q2, q3, q4, q5, q6, q7, q8, q9, q10);
+// criterion_main!(benches);
 criterion_group!(name = benches;
 config = Criterion::default().sample_size(10);
-targets = q1, q2, q3, q4, q5, q6, q7, q8, q9, q10);
+targets = q4);
 criterion_main!(benches);

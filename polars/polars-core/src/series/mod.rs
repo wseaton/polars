@@ -17,6 +17,8 @@ use std::any::Any;
 use std::convert::TryFrom;
 use std::ops::Deref;
 use std::sync::Arc;
+use crate::frame::group_by::GroupTuples;
+use crate::utils::{accumulate_ca, accumulate_series};
 
 pub trait IntoSeries {
     fn into_series(self) -> Series
@@ -26,54 +28,54 @@ pub trait IntoSeries {
 
 pub(crate) mod private {
     use super::*;
-    use crate::frame::group_by::PivotAgg;
+    use crate::frame::group_by::{PivotAgg, GroupTuples};
     use ahash::RandomState;
 
     pub trait PrivateSeries {
         fn vec_hash(&self, _random_state: RandomState) -> UInt64Chunked {
             unimplemented!()
         }
-        fn agg_mean(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_mean(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_min(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_min(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_max(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_max(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_sum(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_sum(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_std(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_std(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_var(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_var(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_first(&self, _groups: &[(u32, Vec<u32>)]) -> Series {
+        fn agg_first(&self, _groups: &GroupTuples) -> Series {
             unimplemented!()
         }
-        fn agg_last(&self, _groups: &[(u32, Vec<u32>)]) -> Series {
+        fn agg_last(&self, _groups: &GroupTuples) -> Series {
             unimplemented!()
         }
-        fn agg_n_unique(&self, _groups: &[(u32, Vec<u32>)]) -> Option<UInt32Chunked> {
+        fn agg_n_unique(&self, _groups: &GroupTuples) -> Option<UInt32Chunked> {
             unimplemented!()
         }
-        fn agg_list(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_list(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_quantile(&self, _groups: &[(u32, Vec<u32>)], _quantile: f64) -> Option<Series> {
+        fn agg_quantile(&self, _groups: &GroupTuples, _quantile: f64) -> Option<Series> {
             unimplemented!()
         }
-        fn agg_median(&self, _groups: &[(u32, Vec<u32>)]) -> Option<Series> {
+        fn agg_median(&self, _groups: &GroupTuples) -> Option<Series> {
             unimplemented!()
         }
         fn pivot<'a>(
             &self,
             _pivot_series: &'a (dyn SeriesTrait + 'a),
             _keys: Vec<Series>,
-            _groups: &[(u32, Vec<u32>)],
+            _groups: &GroupTuples,
             _agg_type: PivotAgg,
         ) -> Result<DataFrame> {
             unimplemented!()
@@ -83,7 +85,7 @@ pub(crate) mod private {
             &self,
             _pivot_series: &'a (dyn SeriesTrait + 'a),
             _keys: Vec<Series>,
-            _groups: &[(u32, Vec<u32>)],
+            _groups: &GroupTuples,
         ) -> Result<DataFrame> {
             unimplemented!()
         }
@@ -120,7 +122,7 @@ pub(crate) mod private {
         fn remainder(&self, _rhs: &Series) -> Result<Series> {
             unimplemented!()
         }
-        fn group_tuples(&self, _multithreaded: bool) -> Vec<(u32, Vec<u32>)> {
+        fn group_tuples(&self, _multithreaded: bool) -> GroupTuples {
             unimplemented!()
         }
     }

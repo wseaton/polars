@@ -492,6 +492,7 @@ fn groupby_helper(
     }
 
     let groups = gb.get_groups();
+    let groups_len: usize = groups.iter().map(|partition| partition.len()).sum();
 
     let mut columns = gb.keys();
 
@@ -504,7 +505,7 @@ fn groupby_helper(
                 let agg_expr = expr.as_agg_expr()?;
                 let opt_agg = agg_expr.evaluate(&df, groups)?;
                 if let Some(agg) = &opt_agg {
-                    if agg.len() != groups.len() {
+                    if agg.len() != groups_len {
                         panic!(
                             "returned aggregation is a different length: {} than the group lengths: {}",
                             agg.len(),

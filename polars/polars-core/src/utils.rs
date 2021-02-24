@@ -534,6 +534,28 @@ fn _get_supertype(l: &DataType, r: &DataType) -> Option<DataType> {
     }
 }
 
+pub fn accumulate_ca<T, I>(i: I) -> ChunkedArray<T>
+    where
+    I: IntoIterator<Item = ChunkedArray<T>>, {
+    let mut iter = i.into_iter();
+    let mut acc_ca = iter.next().expect("at least one chunkedarray");
+    for ca in iter {
+        acc_ca.append(&ca);
+    }
+    acc_ca
+}
+
+pub fn accumulate_series<I>(i: I) -> Series
+    where
+        I: IntoIterator<Item = Series>, {
+    let mut iter = i.into_iter();
+    let mut acc_ca = iter.next().expect("at least one chunkedarray");
+    for ca in iter {
+        acc_ca.append(&ca);
+    }
+    acc_ca
+}
+
 pub fn accumulate_dataframes_vertical<I>(dfs: I) -> Result<DataFrame>
 where
     I: IntoIterator<Item = DataFrame>,
@@ -590,6 +612,12 @@ pub(crate) trait CustomIterTools: Iterator {
     {
         let first = self.next()?;
         Some(self.fold(first, f))
+    }
+
+    fn trusted(mut self, len: usize) -> TrustMyLength<Self, Self::Item>
+    where Self: Sized
+    {
+        TrustMyLength::new(self, len)
     }
 }
 

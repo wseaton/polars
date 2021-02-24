@@ -1,7 +1,7 @@
 #[cfg(feature = "object")]
 use crate::chunked_array::object::ObjectType;
 use crate::prelude::*;
-use crate::utils::{floating_encode_f64, integer_decode_f64, NoNull};
+use crate::utils::{floating_encode_f64, integer_decode_f64, NoNull, accumulate_ca};
 use crate::{chunked_array::float::IntegerDecode, frame::group_by::IntoGroupTuples};
 use ahash::RandomState;
 use itertools::Itertools;
@@ -10,36 +10,40 @@ use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::Hash;
+use crate::frame::group_by::GroupTuples;
 
 pub(crate) fn is_unique_helper(
-    mut groups: Vec<(u32, Vec<u32>)>,
+    mut groups: GroupTuples,
     len: u32,
     unique_val: bool,
     duplicated_val: bool,
 ) -> BooleanChunked {
     debug_assert_ne!(unique_val, duplicated_val);
-    groups.sort_unstable_by_key(|t| t.0);
 
-    let mut unique_idx_iter = groups
-        .into_iter()
-        .filter(|(_, g)| g.len() == 1)
-        .map(|(first, _)| first);
+    groups.into_iter()
+        .map(|mut groups| {
+            groups.sort_unstable_by_key(|t| t.0);
 
-    let mut next_unique_idx = unique_idx_iter.next();
-    (0..len)
-        .into_iter()
-        .map(|idx| match next_unique_idx {
-            Some(unique_idx) => {
-                if idx == unique_idx {
-                    next_unique_idx = unique_idx_iter.next();
-                    unique_val
-                } else {
-                    duplicated_val
-                }
-            }
-            None => duplicated_val,
-        })
-        .collect()
+            let mut unique_idx_iter = groups
+                .into_iter()
+                .filter(|(_, g)| g.len() == 1)
+                .map(|(first, _)| first);
+
+            let mut next_unique_idx = unique_idx_iter.next();
+            (0..len)
+                .into_iter()
+                .map(move |idx| match next_unique_idx {
+                    Some(unique_idx) => {
+                        if idx == unique_idx {
+                            next_unique_idx = unique_idx_iter.next();
+                            unique_val
+                        } else {
+                            duplicated_val
+                        }
+                    }
+                    None => duplicated_val,
+                })
+        }).flatten().collect()
 }
 
 fn is_unique<T>(ca: &ChunkedArray<T>) -> BooleanChunked
@@ -136,9 +140,10 @@ macro_rules! impl_value_counts {
     ($self:expr) => {{
         let group_tuples = $self.group_tuples(true);
         let values =
-            unsafe { $self.take_unchecked(group_tuples.iter().map(|t| t.0 as usize).into()) };
+            unsafe { $self.take_unchecked(group_tuples.iter().flatten().map(|t| t.0 as usize).into()) };
         let mut counts: NoNull<UInt32Chunked> = group_tuples
             .into_iter()
+            .flatten()
             .map(|(_, groups)| groups.len() as u32)
             .collect();
         counts.rename("counts");
@@ -256,11 +261,17 @@ impl ToDummies<Utf8Type> for Utf8Chunked {
 
         let columns = groups
             .into_par_iter()
-            .map(|(first, groups)| {
-                let val = unsafe { self.get_unchecked(first as usize) };
-                let name = format!("{}_{}", col_name, val);
-                let ca = dummies_helper(groups, self.len(), &name);
-                ca.into_series()
+            .map(|groups| {
+                let iter = groups.into_iter().
+                    map(|(first, groups)|
+                        {
+                            let val = unsafe { self.get_unchecked(first as usize) };
+                            let name = format!("{}_{}", col_name, val);
+                            let ca = dummies_helper(groups, self.len(), &name);
+                            ca
+                        }
+                    );
+                accumulate_ca(iter).into_series()
             })
             .collect();
 
@@ -274,16 +285,23 @@ where
     ChunkedArray<T>: ChunkOps + ChunkCompare<T::Native> + ChunkUnique<T>,
 {
     fn to_dummies(&self) -> Result<DataFrame> {
+
         let groups = self.group_tuples(true);
         let col_name = self.name();
 
         let columns = groups
             .into_par_iter()
-            .map(|(first, groups)| {
-                let val = unsafe { self.get_unchecked(first as usize) };
-                let name = format!("{}_{}", col_name, val);
-                let ca = dummies_helper(groups, self.len(), &name);
-                ca.into_series()
+            .map(|groups| {
+                let iter = groups.into_iter().
+                    map(|(first, groups)|
+                        {
+                            let val = unsafe { self.get_unchecked(first as usize) };
+                            let name = format!("{}_{}", col_name, val);
+                            let ca = dummies_helper(groups, self.len(), &name);
+                            ca
+                        }
+                    );
+                accumulate_ca(iter).into_series()
             })
             .collect();
 
