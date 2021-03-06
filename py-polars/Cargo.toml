@@ -24,15 +24,5 @@ ndarray = "0.14.0"
 name = "pypolars"
 crate-type = ["cdylib"]
 
-
 [package.metadata.maturin]
 requires-dist = ["numpy", "pyarrow==3.0"]
-
-[profile.release]
-codegen-units = 1
-
-target-cpu = "native"
-lto = "fat"
-
-#[profile.dev]
-#opt-level = 1

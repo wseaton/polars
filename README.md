@@ -114,11 +114,14 @@ Want to contribute? Read our [contribution guideline](./CONTRIBUTING.md).
 * `POLARS_TABLE_WIDTH` -> width of the tables used during DataFrame formatting.
 * `POLARS_MAX_THREADS` -> maximum number of threads used in join algorithm. Default is unbounded.
 
-## \[Python\] compile py-polars from source
+## \[Python\] compile py-polars from source for maximal performance
 If you want a bleeding edge release or maximal performance you should compile **py-polars** from source.
 
 This can be done by going through the following steps in sequence:
 
 1. install the latest [rust compiler](https://www.rust-lang.org/tools/install)
 2. `$ pip3 install maturin`
-4. `$ cd py-polars && maturin develop --release`
+4. `$ cd py-polars && RUSTFLAGS='-C target-cpu=native' maturin develop --release`
+
+The performance difference can be quite significant if you compile for a relatively new or high end CPU.
+The default activated SIMD features are conservative to accommodate many CPU architectures.
