@@ -2,9 +2,12 @@ use arrow::alloc;
 use arrow::array::{ArrayData, PrimitiveArray};
 use arrow::buffer::Buffer;
 use arrow::datatypes::*;
+use std::cmp::{Ord, Ordering};
 use std::iter::FromIterator;
 use std::mem;
 use std::mem::ManuallyDrop;
+use std::ops::Index;
+use std::slice::SliceIndex;
 
 /// A `Vec` wrapper with a memory alignment equal to Arrow's primitive arrays.
 /// Can be useful in creating a new ChunkedArray or Arrow Primitive array without copying.
@@ -246,6 +249,27 @@ impl<T> AlignedVec<T> {
         let added = self.len() - len_before;
         assert_eq!(added, cap)
     }
+
+    #[inline]
+    pub fn iter(&self) -> std::slice::Iter<'_, T> {
+        self.inner.iter()
+    }
+
+    #[inline]
+    pub unsafe fn get_unchecked<I>(&self, index: I) -> &I::Output
+    where
+        I: SliceIndex<[T]>,
+    {
+        self.inner.get_unchecked(index)
+    }
+}
+
+impl<T: Clone> Clone for AlignedVec<T> {
+    fn clone(&self) -> Self {
+        let mut out = AlignedVec::with_capacity_aligned(self.len());
+        out.extend_from_slice(&self.inner);
+        out
+    }
 }
 
 impl<T> Default for AlignedVec<T> {
@@ -253,6 +277,57 @@ impl<T> Default for AlignedVec<T> {
         // Be careful here. Don't initialize with a normal Vec as this will cause the wrong deallocator
         // to run and SIGSEGV
         Self::with_capacity_aligned(0)
+    }
+}
+
+impl<T, I: SliceIndex<[T]>> Index<I> for AlignedVec<T> {
+    type Output = I::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        self.inner.index(index)
+    }
+}
+
+impl<T> IntoIterator for AlignedVec<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        // TODO: test this!!!!!!
+        unsafe { self.into_inner() }.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a AlignedVec<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<T: PartialEq> PartialEq for AlignedVec<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.eq(&other.inner)
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for AlignedVec<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+impl<T: Eq> Eq for AlignedVec<T> {}
+
+impl<T: Ord + Eq> Ord for AlignedVec<T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(&self.inner, &other.inner)
     }
 }
 

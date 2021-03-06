@@ -65,10 +65,10 @@ pub(crate) fn this_thread(h: u64, thread_no: u64, n_threads: u64) -> bool {
 }
 
 fn finish_table_from_key_hashes<T>(
-    hashes_nd_keys: Vec<(u64, T)>,
-    mut hash_tbl: HashMap<T, Vec<u32>, RandomState>,
+    hashes_nd_keys: AlignedVec<(u64, T)>,
+    mut hash_tbl: HashMap<T, AlignedVec<u32>, RandomState>,
     offset: usize,
-) -> HashMap<T, Vec<u32>, RandomState>
+) -> HashMap<T, AlignedVec<u32>, RandomState>
 where
     T: Hash + Eq,
 {
@@ -86,28 +86,32 @@ where
                     v.push(idx);
                 })
                 // otherwise we insert both the key and new Vec without hashing
-                .or_insert_with(|| (t, vec![idx]));
+                .or_insert_with(|| {
+                    let mut av = AlignedVec::with_capacity_aligned(1);
+                    av.push(idx);
+                    (t, av)
+                });
         });
     hash_tbl
 }
 
 pub(crate) fn prepare_hashed_relation<T>(
     b: impl Iterator<Item = T>,
-) -> HashMap<T, Vec<u32>, RandomState>
+) -> HashMap<T, AlignedVec<u32>, RandomState>
 where
     T: Hash + Eq,
 {
     let random_state = RandomState::default();
 
-    let hashes_nd_keys = b
+    let hashes_nd_keys: AlignedVec<_> = b
         .map(|val| {
             let mut hasher = random_state.build_hasher();
             val.hash(&mut hasher);
             (hasher.finish(), val)
         })
-        .collect::<Vec<_>>();
+        .collect();
 
-    let hash_tbl: HashMap<T, Vec<u32>, RandomState> =
+    let hash_tbl: HashMap<T, AlignedVec<u32>, RandomState> =
         HashMap::with_capacity_and_hasher(hashes_nd_keys.len(), random_state);
 
     finish_table_from_key_hashes(hashes_nd_keys, hash_tbl, 0)

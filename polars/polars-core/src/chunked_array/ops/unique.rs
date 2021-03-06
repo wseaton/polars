@@ -231,8 +231,8 @@ impl ChunkUnique<CategoricalType> for CategoricalChunked {
     }
 }
 
-fn dummies_helper(mut groups: Vec<u32>, len: usize, name: &str) -> UInt8Chunked {
-    groups.sort_unstable();
+fn dummies_helper(mut groups: AlignedVec<u32>, len: usize, name: &str) -> UInt8Chunked {
+    groups.inner.sort_unstable();
 
     // let mut group_member_iter = groups.into_iter();
     let mut av = AlignedVec::with_capacity_aligned(len);

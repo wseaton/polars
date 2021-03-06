@@ -290,7 +290,7 @@ impl PhysicalExpr for AliasExpr {
 }
 
 impl AggPhysicalExpr for AliasExpr {
-    fn evaluate(&self, df: &DataFrame, groups: &[Vec<u32>]) -> Result<Option<Series>> {
+    fn evaluate(&self, df: &DataFrame, groups: &[AlignedVec<u32>]) -> Result<Option<Series>> {
         let agg_expr = self.physical_expr.as_agg_expr()?;
         let opt_agg = agg_expr.evaluate(df, groups)?;
         Ok(opt_agg.map(|mut agg| {
@@ -400,7 +400,7 @@ fn rename_option_series(opt: Option<Series>, name: &str) -> Option<Series> {
 }
 
 impl AggPhysicalExpr for PhysicalAggExpr {
-    fn evaluate(&self, df: &DataFrame, groups: &[Vec<u32>]) -> Result<Option<Series>> {
+    fn evaluate(&self, df: &DataFrame, groups: &[AlignedVec<u32>]) -> Result<Option<Series>> {
         let series = self.expr.evaluate(df)?;
         let new_name = fmt_groupby_column(series.name(), self.agg_type);
 
@@ -481,7 +481,7 @@ impl AggPhysicalExpr for PhysicalAggExpr {
     fn evaluate_partitioned(
         &self,
         df: &DataFrame,
-        groups: &[Vec<u32>],
+        groups: &[AlignedVec<u32>],
     ) -> Result<Option<Vec<Series>>> {
         match self.agg_type {
             GroupByMethod::Mean => {
@@ -516,7 +516,7 @@ impl AggPhysicalExpr for PhysicalAggExpr {
     fn evaluate_partitioned_final(
         &self,
         final_df: &DataFrame,
-        groups: &[Vec<u32>],
+        groups: &[AlignedVec<u32>],
     ) -> Result<Option<Series>> {
         match self.agg_type {
             GroupByMethod::Mean => {
@@ -582,7 +582,7 @@ impl PhysicalExpr for AggQuantileExpr {
 }
 
 impl AggPhysicalExpr for AggQuantileExpr {
-    fn evaluate(&self, df: &DataFrame, groups: &[Vec<u32>]) -> Result<Option<Series>> {
+    fn evaluate(&self, df: &DataFrame, groups: &[AlignedVec<u32>]) -> Result<Option<Series>> {
         let series = self.expr.evaluate(df)?;
         let new_name = fmt_groupby_column(series.name(), GroupByMethod::Quantile(self.quantile));
         let opt_agg = series.agg_quantile(groups, self.quantile);
@@ -692,7 +692,7 @@ impl PhysicalExpr for ApplyExpr {
 }
 
 impl AggPhysicalExpr for ApplyExpr {
-    fn evaluate(&self, df: &DataFrame, groups: &[Vec<u32>]) -> Result<Option<Series>> {
+    fn evaluate(&self, df: &DataFrame, groups: &[AlignedVec<u32>]) -> Result<Option<Series>> {
         match self.input.as_agg_expr() {
             // layer below is also an aggregation expr.
             Ok(expr) => {
@@ -824,7 +824,7 @@ impl PhysicalExpr for SliceExpr {
 }
 
 impl AggPhysicalExpr for SliceExpr {
-    fn evaluate(&self, df: &DataFrame, groups: &[Vec<u32>]) -> Result<Option<Series>> {
+    fn evaluate(&self, df: &DataFrame, groups: &[AlignedVec<u32>]) -> Result<Option<Series>> {
         let s = self.input.evaluate(df)?;
         let agg_s = s.agg_list(groups);
         let out = agg_s.map(|s| {
@@ -876,7 +876,7 @@ impl PhysicalExpr for BinaryFunction {
 }
 
 impl AggPhysicalExpr for BinaryFunction {
-    fn evaluate(&self, df: &DataFrame, groups: &[Vec<u32>]) -> Result<Option<Series>> {
+    fn evaluate(&self, df: &DataFrame, groups: &[AlignedVec<u32>]) -> Result<Option<Series>> {
         let a = self.input_a.evaluate(df)?;
         let b = self.input_b.evaluate(df)?;
 

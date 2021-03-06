@@ -82,51 +82,51 @@ macro_rules! impl_dyn_series {
                 self.0.vec_hash(random_state)
             }
 
-            fn agg_mean(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_mean(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_mean(groups)
             }
 
-            fn agg_min(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_min(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_min(groups)
             }
 
-            fn agg_max(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_max(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_max(groups)
             }
 
-            fn agg_sum(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_sum(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_sum(groups)
             }
 
-            fn agg_first(&self, groups: &[Vec<u32>]) -> Series {
+            fn agg_first(&self, groups: &[AlignedVec<u32>]) -> Series {
                 self.0.agg_first(groups)
             }
 
-            fn agg_last(&self, groups: &[Vec<u32>]) -> Series {
+            fn agg_last(&self, groups: &[AlignedVec<u32>]) -> Series {
                 self.0.agg_last(groups)
             }
 
-            fn agg_std(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_std(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_std(groups)
             }
 
-            fn agg_var(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_var(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_var(groups)
             }
 
-            fn agg_n_unique(&self, groups: &[Vec<u32>]) -> Option<UInt32Chunked> {
+            fn agg_n_unique(&self, groups: &[AlignedVec<u32>]) -> Option<UInt32Chunked> {
                 self.0.agg_n_unique(groups)
             }
 
-            fn agg_list(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_list(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_list(groups)
             }
 
-            fn agg_quantile(&self, groups: &[Vec<u32>], quantile: f64) -> Option<Series> {
+            fn agg_quantile(&self, groups: &[AlignedVec<u32>], quantile: f64) -> Option<Series> {
                 self.0.agg_quantile(groups, quantile)
             }
 
-            fn agg_median(&self, groups: &[Vec<u32>]) -> Option<Series> {
+            fn agg_median(&self, groups: &[AlignedVec<u32>]) -> Option<Series> {
                 self.0.agg_median(groups)
             }
 
@@ -134,7 +134,7 @@ macro_rules! impl_dyn_series {
                 &self,
                 pivot_series: &'a (dyn SeriesTrait + 'a),
                 keys: Vec<Series>,
-                groups: &[Vec<u32>],
+                groups: &[AlignedVec<u32>],
                 agg_type: PivotAgg,
             ) -> Result<DataFrame> {
                 self.0.pivot(pivot_series, keys, groups, agg_type)
@@ -144,7 +144,7 @@ macro_rules! impl_dyn_series {
                 &self,
                 pivot_series: &'a (dyn SeriesTrait + 'a),
                 keys: Vec<Series>,
-                groups: &[Vec<u32>],
+                groups: &[AlignedVec<u32>],
             ) -> Result<DataFrame> {
                 self.0.pivot_count(pivot_series, keys, groups)
             }
